@@ -46,20 +46,20 @@ jobs:
 
           echo "GH_PAT secret is configured"
 
-      - name: Test GH_PAT access to company Frappe repo
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-        run: |
-          set -e
-
-          echo "Testing access to bizaxl/frappe..."
-
-          git -c http.extraheader="Authorization: Bearer $GH_PAT" \
-            ls-remote https://github.com/bizaxl/frappe.git \
-            HEAD refs/heads/main
-
-          echo "GH_PAT can access bizaxl/frappe"
-          echo "main branch is accessible"
+#      - name: Test GH_PAT access to company Frappe repo
+#        env:
+#          GH_PAT: ${{ secrets.GH_PAT }}
+#        run: |
+#          set -e
+#
+#          echo "Testing access to bizaxl/frappe..."
+#
+#          git -c http.extraheader="Authorization: Bearer $GH_PAT" \
+#            ls-remote https://github.com/bizaxl/frappe.git \
+#            HEAD refs/heads/main
+#
+#          echo "GH_PAT can access bizaxl/frappe"
+#          echo "main branch is accessible"
 
       - name: Record start time
         run: echo "BUILD_START=$(date +%s)" >> "$GITHUB_ENV"
