@@ -24,26 +24,19 @@ RUN useradd -ms /bin/bash frappe \
     nginx \
     gettext-base \
     file \
-    # weasyprint dependencies
     libpango-1.0-0 \
     libharfbuzz0b \
     libpangoft2-1.0-0 \
     libpangocairo-1.0-0 \
-    # For backups
     restic \
     gpg \
-    # MariaDB
     mariadb-client \
     less \
-    # Postgres
     libpq-dev \
     postgresql-client \
-    # For healthcheck
     wait-for-it \
     jq \
-    # For MIME type detection
     media-types \
-    # NodeJS
     && mkdir -p ${NVM_DIR} \
     && curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.6/install.sh | bash \
     && . ${NVM_DIR}/nvm.sh \
@@ -56,24 +49,20 @@ RUN useradd -ms /bin/bash frappe \
     && echo 'export NVM_DIR="/home/frappe/.nvm"' >> /home/frappe/.bashrc \
     && echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm' >> /home/frappe/.bashrc \
     && echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion' >> /home/frappe/.bashrc \
-    # Install wkhtmltopdf with patched qt
     && if [ "$(uname -m)" = "aarch64" ]; then export ARCH=arm64; fi \
     && if [ "$(uname -m)" = "x86_64" ]; then export ARCH=amd64; fi \
     && downloaded_file=wkhtmltox_${WKHTMLTOPDF_VERSION}.${WKHTMLTOPDF_DISTRO}_${ARCH}.deb \
     && curl -sLO https://github.com/wkhtmltopdf/packaging/releases/download/$WKHTMLTOPDF_VERSION/$downloaded_file \
     && apt-get install -y ./$downloaded_file \
     && rm $downloaded_file \
-    # Chromium
     && if [ "$INSTALL_CHROMIUM" != "false" ]; then \
         DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
         chromium-headless-shell; \
     fi \
-    # Clean up
     && rm -rf /var/lib/apt/lists/* \
     && rm -fr /etc/nginx/sites-enabled/default \
     && mkdir -p /etc/nginx/snippets \
     && pip3 install frappe-bench \
-    # Fixes for non-root nginx and logs to stdout
     && sed -i '/user www-data/d' /etc/nginx/nginx.conf \
     && ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log \
@@ -92,17 +81,13 @@ FROM base AS builder
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
-    # For frappe framework
     wget \
-    # for building arm64 binaries
     libcairo2-dev \
     libpango1.0-dev \
     libjpeg-dev \
     libgif-dev \
     librsvg2-dev \
-    # For psycopg2
     libpq-dev \
-    # Other
     libffi-dev \
     liblcms2-dev \
     libldap2-dev \
@@ -115,7 +100,6 @@ RUN apt-get update \
     rlwrap \
     tk8.6-dev \
     cron \
-    # For pandas
     gcc \
     build-essential \
     libbz2-dev \
@@ -130,95 +114,66 @@ ARG CACHE_BUST=""
 RUN --mount=type=secret,id=apps_json,target=/opt/frappe/apps.json,uid=1000,gid=1000 \
     --mount=type=secret,id=github_token,target=/tmp/github_token,uid=1000,gid=1000 \
     : "${CACHE_BUST}" && \
-
     echo "==================================================" && \
     echo "Checking GitHub authentication configuration" && \
     echo "==================================================" && \
-
     if [ ! -s /tmp/github_token ]; then \
         echo "ERROR: GitHub token secret is empty or missing."; \
         exit 1; \
     fi && \
-
     echo "GitHub token secret is available." && \
-
     echo "==================================================" && \
     echo "Checking apps.json" && \
     echo "==================================================" && \
-
     if [ ! -s /opt/frappe/apps.json ]; then \
         echo "ERROR: /opt/frappe/apps.json is missing or empty."; \
         exit 1; \
     fi && \
-
     cat /opt/frappe/apps.json && \
     echo "" && \
-
     echo "Validating apps.json JSON syntax..." && \
     jq empty /opt/frappe/apps.json && \
     echo "apps.json JSON syntax is valid." && \
-
     echo "==================================================" && \
     echo "Configuring Git credential helper" && \
     echo "==================================================" && \
-
     printf '%s\n' \
       '#!/bin/sh' \
       'printf "username=x-access-token\n"' \
       'printf "password=%s\n" "$(cat /tmp/github_token)"' \
       > /tmp/git-credential-helper && \
-
     chmod 700 /tmp/git-credential-helper && \
-
     export GIT_CONFIG_COUNT=1 && \
     export GIT_CONFIG_KEY_0=credential.helper && \
     export GIT_CONFIG_VALUE_0=/tmp/git-credential-helper && \
-
     echo "==================================================" && \
     echo "Testing access to Frappe repository" && \
     echo "==================================================" && \
-
     git ls-remote "${FRAPPE_PATH}" HEAD >/dev/null && \
     echo "Frappe repository access: OK" && \
-
     echo "==================================================" && \
     echo "Testing access to ERPNext repository" && \
     echo "==================================================" && \
-
     git ls-remote "https://github.com/bizaxl/erpnext.git" HEAD >/dev/null && \
     echo "ERPNext repository access: OK" && \
-
     echo "==================================================" && \
     echo "Testing access to HRMS repository" && \
     echo "==================================================" && \
-
     git ls-remote "https://github.com/bizaxl/hrms.git" HEAD >/dev/null && \
     echo "HRMS repository access: OK" && \
-
-    echo "==================================================" && \
-    echo "Testing access to Payments repository" && \
-    echo "==================================================" && \
-
-    git ls-remote "https://github.com/bizaxl/payments.git" HEAD >/dev/null && \
-    echo "Payments repository access: OK" && \
-
     echo "==================================================" && \
     echo "All GitHub repository access tests passed." && \
     echo "==================================================" && \
-
     export APP_INSTALL_ARGS="" && \
-
     if [ -f /opt/frappe/apps.json ] && [ -s /opt/frappe/apps.json ]; then \
         export APP_INSTALL_ARGS="--apps_path=/opt/frappe/apps.json"; \
     fi && \
-
     echo "==================================================" && \
     echo "Starting bench init" && \
     echo "Frappe path: ${FRAPPE_PATH}" && \
     echo "Frappe branch: ${FRAPPE_BRANCH}" && \
     echo "Apps configuration: /opt/frappe/apps.json" && \
     echo "==================================================" && \
-
     bench init ${APP_INSTALL_ARGS} \
       --frappe-branch=${FRAPPE_BRANCH} \
       --frappe-path=${FRAPPE_PATH} \
@@ -227,7 +182,6 @@ RUN --mount=type=secret,id=apps_json,target=/opt/frappe/apps.json,uid=1000,gid=1
       --skip-redis-config-generation \
       --verbose \
       /home/frappe/frappe-bench && \
-
     cd /home/frappe/frappe-bench && \
     echo "{}" > sites/common_site_config.json && \
     find apps -mindepth 1 -path "*/.git" | xargs rm -fr
@@ -243,7 +197,6 @@ COPY --from=builder --chown=frappe:frappe \
 
 WORKDIR /home/frappe/frappe-bench
 
-# Move assets to image-layer storage
 RUN cp -r /home/frappe/frappe-bench/sites/assets \
     /home/frappe/frappe-bench/assets && \
     rm -rf /home/frappe/frappe-bench/sites/assets
@@ -255,8 +208,6 @@ VOLUME [ \
 
 USER root
 
-# This entrypoint script links build assets to the mounted sites volume
-# at container initialization
 COPY resources/core/main-entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 755 /usr/local/bin/entrypoint.sh
 
