@@ -31,8 +31,32 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Test GH_PAT access to company Frappe repo
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          set -e
+
+          if [ -z "$GH_PAT" ]; then
+            echo "❌ GH_PAT is empty"
+            exit 1
+          fi
+
+          echo "✓ GH_PAT is configured"
+          echo "Testing access to bizaxl/frappe..."
+
+          git -c http.extraheader="Authorization: Bearer $GH_PAT" \
+            ls-remote https://github.com/bizaxl/frappe.git \
+            HEAD refs/heads/main
+
+          echo "✓ GH_PAT can access bizaxl/frappe"
+
       - name: Write GitHub token to a temp file
-        run: echo "${{ secrets.GH_PAT }}" > "$RUNNER_TEMP/github_token"
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          printf '%s' "$GH_PAT" > "$RUNNER_TEMP/github_token"
+          chmod 600 "$RUNNER_TEMP/github_token"
 
       - name: Record start time
         run: echo "BUILD_START=$(date +%s)" >> "$GITHUB_ENV"
