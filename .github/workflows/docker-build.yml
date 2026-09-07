@@ -31,8 +31,8 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Base64-encode apps.json
-        run: echo "APPS_JSON_BASE64=$(base64 -w 0 apps.json)" >> "$GITHUB_ENV"
+      - name: Write GitHub token to a temp file
+        run: echo "${{ secrets.GH_PAT }}" > "$RUNNER_TEMP/github_token"
 
       - name: Record start time
         run: echo "BUILD_START=$(date +%s)" >> "$GITHUB_ENV"
@@ -45,8 +45,9 @@ jobs:
           file: images/custom/Containerfile
           platforms: linux/amd64
           push: true
-          build-args: |
-            APPS_JSON_BASE64=${{ env.APPS_JSON_BASE64 }}
+          secret-files: |
+            apps_json=apps.json
+            github_token=${{ runner.temp }}/github_token
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/frappe-custom:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/frappe-custom:${{ github.sha }}
