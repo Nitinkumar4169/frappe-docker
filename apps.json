@@ -1,14 +1,14 @@
 [
   {
-    "url": "https://github.com/Nitinkumar4169/erpnext.git",
+    "url": "https://github.com/bizaxl/erpnext.git",
     "branch": "main"
   },
   {
-    "url": "https://github.com/Nitinkumar4169/hrms.git",
+    "url": "https://github.com/bizaxl/hrms.git",
     "branch": "main"
   },
   {
-    "url": "https://github.com/Nitinkumar4169/payments.git",
+    "url": "https://github.com/bizaxl/payments.git",
     "branch": "main"
   }
 ]
