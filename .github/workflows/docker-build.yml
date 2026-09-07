@@ -7,6 +7,7 @@ on:
       - "images/custom/Containerfile"
       - "apps.json"
       - ".github/workflows/docker-build.yml"
+
   workflow_dispatch:
     inputs:
       image_tag:
@@ -18,6 +19,7 @@ jobs:
   build:
     name: Build & Push
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,32 +33,33 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Test GH_PAT access to company Frappe repo
+      - name: Verify GH_PAT is configured
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           set -e
 
           if [ -z "$GH_PAT" ]; then
-            echo "❌ GH_PAT is empty"
+            echo "ERROR: GH_PAT secret is not configured!"
             exit 1
           fi
 
-          echo "✓ GH_PAT is configured"
+          echo "GH_PAT secret is configured"
+
+      - name: Test GH_PAT access to company Frappe repo
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          set -e
+
           echo "Testing access to bizaxl/frappe..."
 
           git -c http.extraheader="Authorization: Bearer $GH_PAT" \
             ls-remote https://github.com/bizaxl/frappe.git \
             HEAD refs/heads/main
 
-          echo "✓ GH_PAT can access bizaxl/frappe"
-
-      - name: Write GitHub token to a temp file
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-        run: |
-          printf '%s' "$GH_PAT" > "$RUNNER_TEMP/github_token"
-          chmod 600 "$RUNNER_TEMP/github_token"
+          echo "GH_PAT can access bizaxl/frappe"
+          echo "main branch is accessible"
 
       - name: Record start time
         run: echo "BUILD_START=$(date +%s)" >> "$GITHUB_ENV"
@@ -69,9 +72,13 @@ jobs:
           file: images/custom/Containerfile
           platforms: linux/amd64
           push: true
+
+          secrets: |
+            "github_token=${{ secrets.GH_PAT }}"
+
           secret-files: |
             apps_json=apps.json
-            github_token=${{ runner.temp }}/github_token
+
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/frappe-custom:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/frappe-custom:${{ github.sha }}
@@ -84,6 +91,7 @@ jobs:
           DURATION=$((END - BUILD_START))
           MINUTES=$((DURATION / 60))
           SECONDS=$((DURATION % 60))
+
           {
             echo "### Docker Build Summary"
             echo ""
