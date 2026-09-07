@@ -1,3 +1,4 @@
+```dockerfile
 ARG PYTHON_VERSION=3.11
 ARG DEBIAN_BASE=bookworm
 FROM python:${PYTHON_VERSION}-slim-${DEBIAN_BASE} AS base
@@ -53,9 +54,9 @@ RUN useradd -ms /bin/bash frappe \
     && corepack enable pnpm \
     && nvm alias default ${NODE_VERSION} \
     && rm -rf ${NVM_DIR}/.cache \
-    && echo 'export NVM_DIR="/home/frappe/.nvm"' >>/home/frappe/.bashrc \
-    && echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm' >>/home/frappe/.bashrc \
-    && echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion' >>/home/frappe/.bashrc \
+    && echo 'export NVM_DIR="/home/frappe/.nvm"' >> /home/frappe/.bashrc \
+    && echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm' >> /home/frappe/.bashrc \
+    && echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion' >> /home/frappe/.bashrc \
     # Install wkhtmltopdf with patched qt
     && if [ "$(uname -m)" = "aarch64" ]; then export ARCH=arm64; fi \
     && if [ "$(uname -m)" = "x86_64" ]; then export ARCH=amd64; fi \
@@ -75,7 +76,8 @@ RUN useradd -ms /bin/bash frappe \
     && pip3 install frappe-bench \
     # Fixes for non-root nginx and logs to stdout
     && sed -i '/user www-data/d' /etc/nginx/nginx.conf \
-    && ln -sf /dev/stdout /var/log/nginx/access.log && ln -sf /dev/stderr /var/log/nginx/error.log \
+    && ln -sf /dev/stdout /var/log/nginx/access.log \
+    && ln -sf /dev/stderr /var/log/nginx/error.log \
     && touch /run/nginx.pid \
     && chown -R frappe:frappe /etc/nginx/conf.d \
     && chown -R frappe:frappe /etc/nginx/nginx.conf \
@@ -93,7 +95,7 @@ RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
     # For frappe framework
     wget \
-    #for building arm64 binaries
+    # for building arm64 binaries
     libcairo2-dev \
     libpango1.0-dev \
     libjpeg-dev \
@@ -128,43 +130,124 @@ ARG CACHE_BUST=""
 
 RUN --mount=type=secret,id=apps_json,target=/opt/frappe/apps.json,uid=1000,gid=1000 \
     --mount=type=secret,id=github_token,target=/tmp/github_token,uid=1000,gid=1000 \
-  : "${CACHE_BUST}" && \
-  printf '%s\n' \
-    '#!/bin/sh' \
-    'printf "username=x-access-token\n"' \
-    'printf "password=%s\n" "$(cat /tmp/github_token)"' \
-    > /tmp/git-credential-helper && \
-  chmod 700 /tmp/git-credential-helper && \
-  export GIT_CONFIG_COUNT=1 && \
-  export GIT_CONFIG_KEY_0=credential.helper && \
-  export GIT_CONFIG_VALUE_0=/tmp/git-credential-helper && \
-  export APP_INSTALL_ARGS="" && \
-  if [ -f /opt/frappe/apps.json ] && [ -s /opt/frappe/apps.json ]; then \
-    export APP_INSTALL_ARGS="--apps_path=/opt/frappe/apps.json"; \
-  fi && \
-  bench init ${APP_INSTALL_ARGS} \
-    --frappe-branch=${FRAPPE_BRANCH} \
-    --frappe-path=${FRAPPE_PATH} \
-    --no-procfile \
-    --no-backups \
-    --skip-redis-config-generation \
-    --verbose \
-    /home/frappe/frappe-bench && \
-  cd /home/frappe/frappe-bench && \
-  echo "{}" > sites/common_site_config.json && \
-  find apps -mindepth 1 -path "*/.git" | xargs rm -fr
+    : "${CACHE_BUST}" && \
+
+    echo "==================================================" && \
+    echo "Checking GitHub authentication configuration" && \
+    echo "==================================================" && \
+
+    if [ ! -s /tmp/github_token ]; then \
+        echo "ERROR: GitHub token secret is empty or missing."; \
+        exit 1; \
+    fi && \
+
+    echo "GitHub token secret is available." && \
+
+    echo "==================================================" && \
+    echo "Checking apps.json" && \
+    echo "==================================================" && \
+
+    if [ ! -s /opt/frappe/apps.json ]; then \
+        echo "ERROR: /opt/frappe/apps.json is missing or empty."; \
+        exit 1; \
+    fi && \
+
+    cat /opt/frappe/apps.json && \
+    echo "" && \
+
+    echo "Validating apps.json JSON syntax..." && \
+    jq empty /opt/frappe/apps.json && \
+    echo "apps.json JSON syntax is valid." && \
+
+    echo "==================================================" && \
+    echo "Configuring Git credential helper" && \
+    echo "==================================================" && \
+
+    printf '%s\n' \
+      '#!/bin/sh' \
+      'printf "username=x-access-token\n"' \
+      'printf "password=%s\n" "$(cat /tmp/github_token)"' \
+      > /tmp/git-credential-helper && \
+
+    chmod 700 /tmp/git-credential-helper && \
+
+    export GIT_CONFIG_COUNT=1 && \
+    export GIT_CONFIG_KEY_0=credential.helper && \
+    export GIT_CONFIG_VALUE_0=/tmp/git-credential-helper && \
+
+    echo "==================================================" && \
+    echo "Testing access to Frappe repository" && \
+    echo "==================================================" && \
+
+    git ls-remote "${FRAPPE_PATH}" HEAD >/dev/null && \
+    echo "Frappe repository access: OK" && \
+
+    echo "==================================================" && \
+    echo "Testing access to ERPNext repository" && \
+    echo "==================================================" && \
+
+    git ls-remote "https://github.com/bizaxl/erpnext.git" HEAD >/dev/null && \
+    echo "ERPNext repository access: OK" && \
+
+    echo "==================================================" && \
+    echo "Testing access to HRMS repository" && \
+    echo "==================================================" && \
+
+    git ls-remote "https://github.com/bizaxl/hrms.git" HEAD >/dev/null && \
+    echo "HRMS repository access: OK" && \
+
+    echo "==================================================" && \
+    echo "Testing access to Payments repository" && \
+    echo "==================================================" && \
+
+    git ls-remote "https://github.com/bizaxl/payments.git" HEAD >/dev/null && \
+    echo "Payments repository access: OK" && \
+
+    echo "==================================================" && \
+    echo "All GitHub repository access tests passed." && \
+    echo "==================================================" && \
+
+    export APP_INSTALL_ARGS="" && \
+
+    if [ -f /opt/frappe/apps.json ] && [ -s /opt/frappe/apps.json ]; then \
+        export APP_INSTALL_ARGS="--apps_path=/opt/frappe/apps.json"; \
+    fi && \
+
+    echo "==================================================" && \
+    echo "Starting bench init" && \
+    echo "Frappe path: ${FRAPPE_PATH}" && \
+    echo "Frappe branch: ${FRAPPE_BRANCH}" && \
+    echo "Apps configuration: /opt/frappe/apps.json" && \
+    echo "==================================================" && \
+
+    bench init ${APP_INSTALL_ARGS} \
+      --frappe-branch=${FRAPPE_BRANCH} \
+      --frappe-path=${FRAPPE_PATH} \
+      --no-procfile \
+      --no-backups \
+      --skip-redis-config-generation \
+      --verbose \
+      /home/frappe/frappe-bench && \
+
+    cd /home/frappe/frappe-bench && \
+    echo "{}" > sites/common_site_config.json && \
+    find apps -mindepth 1 -path "*/.git" | xargs rm -fr
+
 
 FROM base AS backend
 
 USER frappe
 
-COPY --from=builder --chown=frappe:frappe /home/frappe/frappe-bench /home/frappe/frappe-bench
+COPY --from=builder --chown=frappe:frappe \
+    /home/frappe/frappe-bench \
+    /home/frappe/frappe-bench
 
 WORKDIR /home/frappe/frappe-bench
 
 # Move assets to image-layer storage
-RUN cp -r /home/frappe/frappe-bench/sites/assets /home/frappe/frappe-bench/assets && \
-  rm -rf /home/frappe/frappe-bench/sites/assets
+RUN cp -r /home/frappe/frappe-bench/sites/assets \
+    /home/frappe/frappe-bench/assets && \
+    rm -rf /home/frappe/frappe-bench/sites/assets
 
 VOLUME [ \
   "/home/frappe/frappe-bench/sites", \
@@ -172,7 +255,9 @@ VOLUME [ \
 ]
 
 USER root
-# This entrypoint script link build assets of the image to the mounted sites volume at container initialization
+
+# This entrypoint script links build assets to the mounted sites volume
+# at container initialization
 COPY resources/core/main-entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 755 /usr/local/bin/entrypoint.sh
 
@@ -180,6 +265,8 @@ COPY resources/core/start.sh /usr/local/bin/start.sh
 RUN chmod 755 /usr/local/bin/start.sh
 
 USER frappe
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 CMD ["start.sh"]
+```
