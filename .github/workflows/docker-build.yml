@@ -31,8 +31,14 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Write GitHub token to a temp file
-        run: echo "${{ secrets.GH_PAT }}" > "$RUNNER_TEMP/github_token"
+      - name: Verify GitHub token is set
+        run: |
+          if [ -z "${{ secrets.GH_PAT }}" ]; then
+            echo "ERROR: GH_PAT secret is not configured!"
+            echo "Please add GH_PAT to your repository secrets with a valid GitHub Personal Access Token."
+            exit 1
+          fi
+          echo "✓ GH_PAT secret is configured"
 
       - name: Record start time
         run: echo "BUILD_START=$(date +%s)" >> "$GITHUB_ENV"
@@ -45,9 +51,10 @@ jobs:
           file: images/custom/Containerfile
           platforms: linux/amd64
           push: true
+          secrets: |
+            "github_token=${{ secrets.GH_PAT }}"
           secret-files: |
             apps_json=apps.json
-            github_token=${{ runner.temp }}/github_token
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/frappe-custom:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/frappe-custom:${{ github.sha }}
