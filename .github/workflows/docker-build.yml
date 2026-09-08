@@ -2,7 +2,7 @@ name: Build Custom Frappe Image
 
 on:
   push:
-    branches: [test]
+    branches: [main]
     paths:
       - "images/custom/Containerfile"
       - "apps.json"
@@ -72,6 +72,7 @@ jobs:
           file: images/custom/Containerfile
           platforms: linux/amd64
           push: true
+          no-cache: true
 
           secrets: |
             "github_token=${{ secrets.GH_PAT }}"
@@ -99,6 +100,7 @@ jobs:
             echo "|---|---|"
             echo "| Containerfile | \`images/custom/Containerfile\` |"
             echo "| Platform | linux/amd64 |"
+            echo "| Cache | **DISABLED (no-cache)** |"
             echo "| Build duration | **${MINUTES}m ${SECONDS}s** (${DURATION}s total) |"
             echo "| Git commit | \`${{ github.sha }}\` |"
             echo "| Image | \`${{ secrets.DOCKERHUB_USERNAME }}/frappe-custom:${{ github.sha }}\` |"
